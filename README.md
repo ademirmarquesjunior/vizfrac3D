@@ -34,20 +34,10 @@ Running the code `test.py` will perform the prediction and evaluation. The resul
 This work is credited to the [Vizlab | X-Reality and GeoInformatics Lab](http://vizlab.unisinos.br/) and the following developers:	[Ademir Marques Junior](https://www.researchgate.net/profile/Ademir_Junior) and [Graciela dos Reis Racolte](https://www.researchgate.net/profile/Graciela-Racolte).
 
 
-## How to cite
-
-If you find our work useful in your research please consider citing one of our papers:
-
-```bash
-To be published
-```
-
-
 ## License
 
-```bash
+
 All source code is made available under a BSD 3-clause license. You can freely use and modify the code, without warranty, so long as you provide attribution to the authors. See LICENSE.md for the full license text.
 
 The manuscript text is not open source. The authors reserve the rights to the article content, which is currently submitted for publication in the Computers & Geosciences.
-```
 
