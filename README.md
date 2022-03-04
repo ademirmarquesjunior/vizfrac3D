@@ -15,7 +15,7 @@ by Graciela Racolte<sup>1,2</sup>, Ademir Marques Jr<sup>1,2</sup>, Leonardo Sca
 Corresponding author: Graciela Racolte, email: gracielarr@unisinos.br
 
 
-This repository contains the source code to ... 
+This repository contains the source code to conduct 3D fracture statistics and generate 3D stochastic DFN models. 
 
 ## Content
 - main.py
