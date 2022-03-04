@@ -19,15 +19,37 @@ This repository contains the source code to ...
 
 ## Content
 - main.py
+Script that load the interpreted data obtained from outcrop immersive interpretation, compute and plot fracture statistiscs, and generate the deterministic and stochastic DFN models
+- frac3D/file_handling.py
+Module to load strike/dip data from files and load Mosis XP project files
+- frac3D/fracture_clustering.py
+Python module to cluster fracture plane data with spherical k-means and the elbow method using Fisher statistics
+- frac3d/fracture_generator.py
+Python module for stochastic 3D fracture generation using Fisher statistics and spacing betweeen fractures
+- frac3D/fracture_stats.py
+Python module with statitics functions to obtain directional statistics (Fisher) and other fracture related statistics
+- frac3D/geometry.py
+Python module with functions and classes to support 3D geometry operation (point distances, ray/triangle mesh intersection, object definitions, etc)
+- frac3D/plot.py
+Python module with functions to plot statistical graphs and the DFN models (fracture planes and cell fracture intensity model)
 
 ## Dependencies
 The code has been tested using packages of:  
 - Python (version 3.7)
-- numpy (1.17.1)
-
+- numpy
+- matplotlib
+- mplstereonet
+- open3D
+- colorsys
+- spherical_kde
+- sklearn
+- scipy
+- numba
+- math
+- time
 
 ## Running the files
-Running the code `test.py` will perform the prediction and evaluation. The results of data file and figures can be found in the folder "output\\". 
+Running the code `main.py` will perform the statistics and DFN models generation. The results of data file and figures can be found in the folder "output\\". 
 
 
 ## Credits	
