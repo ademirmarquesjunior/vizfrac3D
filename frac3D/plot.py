@@ -5,7 +5,13 @@ import colorsys
 import mplstereonet as mpl
 import open3d as o3d
 from .geometry import plane_rotate, Cube
+from .fracture_stats import normals_to_stikedip
+# from .fracture_stats import fisher_stats
 
+
+# colors = [(12, 12, 255), (24, 150, 33), (255,0,0), (127, 0, 110), (255, 0, 220), (255, 248, 56), (178, 0, 255)]
+rgb_colors = [[12, 12, 255], [127, 0, 110], [255,0,0], [24, 150, 33], [255, 0, 220], [204, 153, 0], [178, 0, 255]]
+rgb_colors = np.asarray(rgb_colors)/255
 
 
 def rosechart(angles):
@@ -42,34 +48,38 @@ def rosechart(angles):
     return
 	
 	
-def fisher_plot(plunge, bearing, strike, dip):
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='stereonet')
-    #ax.line(plunge, bearing, color="black", markersize=2)
-    ax.pole(strike, dip, color="black", markersize=2)
+def fisher_plot(plunge, bearing, strike, dip, plot=True):
+    
     confidence = 95
-
     # plunge = dip / trend = bearing = strike
     vector, stats = mpl.find_fisher_stats(plunge, bearing, conf=confidence)
-
-    template = (u"Mean Strike/Dip: {strike:0.0f}\u00B0/{dip:0.0f}\u00B0\n"
-                "Confidence: {conf}%\n"
-                u"Fisher Angle: {fisher:0.2f}\u00B0\n"
-                u"R-Value {r:0.3f}\n"
-                "K-Value: {k:0.2f}")
-    
+    # vector, stats = fisher_stats(dip, strike)
     mean_strike, mean_dip = mpl.plunge_bearing2pole(vector[0], vector[1])
 
     #mean_strike = np.where(mean_strike > 180, mean_strike - 180, mean_strike)
+    
+    
+    if plot==True:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='stereonet')
+        #ax.line(plunge, bearing, color="black", markersize=2)
+        ax.pole(strike, dip, color="black", markersize=2)
+        
+        
+        template = (u"Mean Strike/Dip: {strike:0.0f}\u00B0/{dip:0.0f}\u00B0\n"
+                    "Confidence: {conf}%\n"
+                    u"Fisher Angle: {fisher:0.2f}\u00B0\n"
+                    u"R-Value {r:0.3f}\n"
+                    "K-Value: {k:0.2f}")
 
-    label = template.format(strike=mean_strike[0], dip=mean_dip[0], conf=confidence,
-                            r=stats[0], fisher=stats[1], k=stats[2])
-
-    ax.pole(mean_strike, mean_dip, color="red", label=label)
-    ax.cone(vector[0], vector[1], stats[1], facecolor="None", edgecolor="red")
-
-    # ax.legend(bbox_to_anchor=(1.1, 1.1), numpoints=1)
-    plt.show()
+        label = template.format(strike=mean_strike[0], dip=mean_dip[0], conf=confidence,
+                                r=stats[0], fisher=stats[1], k=stats[2])
+    
+        ax.pole(mean_strike, mean_dip, color="red", label=label)
+        ax.cone(vector[0], vector[1], stats[1], facecolor="None", edgecolor="red")
+    
+        # ax.legend(bbox_to_anchor=(1.1, 1.1), numpoints=1)
+        plt.show()
     
     return mean_strike[0], mean_dip[0], stats
 
@@ -77,8 +87,8 @@ def fisher_plot(plunge, bearing, strike, dip):
    
 def plot_stereonet(strike, dip, labels, n_clusters, plane_stats, mode='plane'):
 
-    colors = [(12, 12, 255), (24, 150, 33), (255,0,0), (127, 0, 110), (255, 0, 220), (255, 248, 56), (178, 0, 255)]
-    colors = np.asarray(colors)/255
+    # colors = [(12, 12, 255), (24, 150, 33), (255,0,0), (127, 0, 110), (255, 0, 220), (255, 248, 56), (178, 0, 255)]
+    # colors = np.asarray(colors)/255
     
     fig = plt.figure(figsize=(8,4))
     ax = fig.add_subplot(111, projection='stereonet')
@@ -91,9 +101,9 @@ def plot_stereonet(strike, dip, labels, n_clusters, plane_stats, mode='plane'):
     
     for i in range(0, np.size(dip)):
         if mode == 'plane':
-            ax.plane(strike[i], dip[i], colors[labels[i]]+'-', linewidth=2)
+            ax.plane(strike[i], dip[i], rgb_colors[labels[i]]+'-', linewidth=2)
         if mode == 'pole':
-            ax.pole(strike[i], dip[i], color=tuple(colors[labels[i]]), marker='.', markersize=7)
+            ax.pole(strike[i], dip[i], color=tuple(rgb_colors[labels[i]]), marker='.', markersize=7)
 
 
     ax.grid()
@@ -101,8 +111,66 @@ def plot_stereonet(strike, dip, labels, n_clusters, plane_stats, mode='plane'):
     
     legend_patches = []
     for i in range(0, n_clusters):
-      legend_patches.append(mpatches.Patch(color=colors[i], label="" + str(i+1)))
+      legend_patches.append(mpatches.Patch(color=rgb_colors[i], label="" + str(i+1)))
     ax.legend(handles=legend_patches, loc="upper right", bbox_to_anchor=(1.7, 0.8), title="Sets", fontsize=14, title_fontsize=14)
+    
+    plt.show()
+    
+    
+def plot_stereonet_from_normals(new_normals, mode='pole'):
+    
+    mode = 'pole'
+    
+    if '_dip' in dir():
+        del(_dip)
+        del(_strike)
+
+    colors = [(12, 12, 255), (24, 150, 33), (255,0,0), (127, 0, 110), (255, 0, 220), (255, 248, 56), (178, 0, 255)]
+    colors = np.asarray(colors)/255
+    
+    fig = plt.figure(figsize=(8,4))
+    ax = fig.add_subplot(111, projection='stereonet')
+    
+    # for i in range(0, n_clusters):
+    #     ax.pole(strike_cent[i], dip_cent[i], colors[i]+'s', markersize=1) # marker = '.'
+    
+    for i in range(0, np.shape(new_normals)[0]):
+        strike, dip = normals_to_stikedip(new_normals[i]) # mpl.vector2pole(new_normals[group][:,0], new_normals[group][:,1], new_normals[group][:,2])
+        strike = np.where(strike > 180, strike - 180, strike)
+        plunge, bearing = mpl.pole2plunge_bearing(strike, dip)
+        plunge = np.asarray(plunge)
+        bearing = np.asarray(bearing)
+        
+        if '_dip' not in dir():
+            _strike = strike
+            _dip = dip
+            print(0)
+        else:
+            _strike = np.concatenate((_strike, strike), axis=0)
+            _dip = np.concatenate((_dip, dip), axis=0)
+            print(1)
+
+        for j in range(0, np.shape(new_normals[i])[0]):
+
+            if mode == 'plane':
+                ax.plane(strike[j], dip[j], colors[i]+'-', linewidth=2)
+            if mode == 'pole':
+                ax.pole(strike[j], dip[j], color=tuple(colors[i]), marker='.', markersize=7)
+
+    _strike = np.reshape(_strike, (1,-1))
+    _dip = np.reshape(_dip, (-1,1))
+    
+    
+    # if mode == 'pole':
+    #     ax.density_contourf(_strike, _dip, cmap='plasma',  measurement='poles', sigma=2)
+        
+
+    ax.grid()
+
+    # legend_patches = []
+    # for i in range(0, n_clusters):
+    #   legend_patches.append(mpatches.Patch(color=colors[i], label="" + str(i+1)))
+    # ax.legend(handles=legend_patches, loc="upper right", bbox_to_anchor=(1.7, 0.8), title="Sets", fontsize=14, title_fontsize=14)
     
     plt.show()
     
@@ -115,8 +183,8 @@ def fracture_planes_plot(n_clusters, new_normals, new_centroids, model_dimension
     points = np.asarray([[-1, -1,0],[1,-1,0],[1,1,0], [-1,1,0]]) # base horizontal square
     points = points*plane_size
     
-    rgb_colors = [[12, 12, 255], [24, 150, 33], [255,0,0], [127, 0, 110], [255, 0, 220], [255, 248, 56], [178, 0, 255]]
-    rgb_colors = np.asarray(rgb_colors)/255    
+    # rgb_colors = [[12, 12, 255], [24, 150, 33], [255,0,0], [127, 0, 110], [255, 0, 220], [255, 248, 56], [178, 0, 255]]
+    # rgb_colors = np.asarray(rgb_colors)/255    
 
     
     meshes = []
@@ -230,9 +298,7 @@ def dfn_plot(intensity_values, offsets, cube_size, cut_out, reference_angle_colo
     return
 
 
-
-def compute_fracture_sets_fisher(strike, dip, plunge, bearing, n_clusters, labels):
-    
+def compute_fracture_sets_fisher(strike, dip, plunge, bearing, n_clusters, labels, plot=False):
     # Compute Fisher statistics for each set
     plane_stats = []
     for group in range(0, n_clusters):
@@ -240,21 +306,78 @@ def compute_fracture_sets_fisher(strike, dip, plunge, bearing, n_clusters, label
             mean_strike, mean_dip, stats = fisher_plot(plunge[np.where(labels == group)],
                                                        bearing[np.where(labels == group)],
                                                        strike[np.where(labels == group)],
-                                                       dip[np.where(labels == group)])
+                                                       dip[np.where(labels == group)], plot)
             
             plane_stats.append((mean_strike, mean_dip, stats[0], stats[1], stats[2]))
             #print(mpl.find_fisher_stats(strike[np.where(labels == group)], dip[np.where(labels == group)], measurements = 'poles', conf=95))
             #print(fisher_stats(plunge[np.where(labels == group)], np.asarray(bearing)[np.where(labels == group)]))
         else:
-            fig = plt.figure()
-            ax = fig.add_subplot(111, projection='stereonet')
-            ax.pole(strike[np.where(labels == group)],
-                    dip[np.where(labels == group)], color="red")
-            plt.show()
+            if plot==True:
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection='stereonet')
+                ax.pole(strike[np.where(labels == group)],
+                        dip[np.where(labels == group)], color="red")
+                plt.show()
+            
+            # plane_stats.append((strike[np.where(labels == group)],
+            #         dip[np.where(labels == group)], 1, 0, np.inf))
             plane_stats.append((strike[np.where(labels == group)],
                     dip[np.where(labels == group)], 1, 0, np.inf))
-            print(strike[np.where(labels == group)], dip[np.where(labels == group)])
-        print("-----")
+
+    
+    plane_stats = np.reshape(plane_stats, (np.shape(plane_stats)[0], 5))
+    # Fisher statistics results
+    # print('Fisher statistics')
+    # print('Strike / Dip / r_value, Fisher_angle, K')
+    # for i in range(0, np.shape(plane_stats)[0]):
+    #     print(plane_stats[i])
+    # print('\n K-means strike/dip centers')
+    # print(np.asarray((strike_cent, dip_cent)).T)
+        
+    if plot==True:
+        print("\\begin{table}[h!]\centering\\begin{tabular}{ccccc} \\toprule Set & Mean Strike/Dip & Fisher Angle & R-Value & K-Value \\\ \\midrule")
+        for i in range(0, np.shape(plane_stats)[0]):
+            
+            print( str(i+1) + " & " + str(round(plane_stats[i][0])) + "°/" + str(round(plane_stats[i][1]))  + "° & " + 
+                  str("{:.2f}".format(plane_stats[i][3])) + "° & " + str("{:.2f}".format(plane_stats[i][2]))  + " & " + str("{:.2f}".format(plane_stats[i][4]))  + " \\\  ")  
+        
+        
+        print("\\bottonrule \\end{tabular}  \caption{Directional statistics for each set showing mean direction/mean dip and computed dispersion values and Fisher angles.} \label{tab:clusters} \end{table}")
+
+    return plane_stats
+
+
+def compute_fisher_from_normals(new_normals, plot=True):
+    
+    # Compute Fisher statistics for each set
+    plane_stats = []
+    for group in range(0, np.size(new_normals)):
+        if np.size(new_normals[group]) > 1:
+            
+            strike, dip = normals_to_stikedip(new_normals[group]) # mpl.vector2pole(new_normals[group][:,0], new_normals[group][:,1], new_normals[group][:,2])
+            strike = np.where(strike > 180, strike - 180, strike)
+            plunge, bearing = mpl.pole2plunge_bearing(strike, dip)
+            plunge = np.asarray(plunge)
+            bearing = np.asarray(bearing)
+            
+            mean_strike, mean_dip, stats = fisher_plot(plunge,
+                                                       bearing,
+                                                       strike,
+                                                       dip, plot)
+            
+            plane_stats.append((mean_strike, mean_dip, stats[0], stats[1], stats[2]))
+            #print(mpl.find_fisher_stats(strike[np.where(labels == group)], dip[np.where(labels == group)], measurements = 'poles', conf=95))
+            #print(fisher_stats(plunge[np.where(labels == group)], np.asarray(bearing)[np.where(labels == group)]))
+        else:
+            if plot==True:
+                fig = plt.figure()
+                ax = fig.add_subplot(111, projection='stereonet')
+                ax.pole(strike,
+                        dip, color="red")
+                plt.show()
+            plane_stats.append((strike, dip, 1, 0, np.inf))
+        #     print(strike, dip)
+        # print("-----")
     
     plane_stats = np.reshape(plane_stats, (np.shape(plane_stats)[0], 5))
     
@@ -265,14 +388,15 @@ def compute_fracture_sets_fisher(strike, dip, plunge, bearing, n_clusters, label
     #     print(plane_stats[i])
     # print('\n K-means strike/dip centers')
     # print(np.asarray((strike_cent, dip_cent)).T)
-        
-    print("\\begin{table}[h!]\centering\\begin{tabular}{ccccc} \\toprule Set & Mean Strike/Dip & Fisher Angle & R-Value & K-Value \\\ \\midrule")
-    for i in range(0, np.shape(plane_stats)[0]):
-        
-        print( str(i+1) + " & " + str(round(plane_stats[i][0])) + "°/" + str(round(plane_stats[i][1]))  + "° & " + 
-              str("{:.2f}".format(plane_stats[i][3])) + "° & " + str("{:.2f}".format(plane_stats[i][2]))  + " & " + str("{:.2f}".format(plane_stats[i][4]))  + " \\\  ")  
     
-    
-    print("\\bottonrule \\end{tabular}  \caption{Directional statistics for each set showing mean direction/mean dip and computed dispersion values and Fisher angles.} \label{tab:clusters} \end{table}")
+    if plot==True:        
+        print("\\begin{table}[h!]\centering\\begin{tabular}{ccccc} \\toprule Set & Mean Strike/Dip & Fisher Angle & R-Value & K-Value \\\ \\midrule")
+        for i in range(0, np.shape(plane_stats)[0]):
+            
+            print( str(i+1) + " & " + str(round(plane_stats[i][0])) + "°/" + str(round(plane_stats[i][1]))  + "° & " + 
+                  str("{:.2f}".format(plane_stats[i][3])) + "° & " + str("{:.2f}".format(plane_stats[i][2]))  + " & " + str("{:.2f}".format(plane_stats[i][4]))  + " \\\  ")  
+        
+        
+        print("\\bottomrule \\end{tabular}  \caption{Directional statistics for each set showing mean direction/mean dip and computed dispersion values and Fisher angles.} \label{tab:clusters} \end{table}")
 
     return plane_stats

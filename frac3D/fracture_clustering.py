@@ -80,34 +80,69 @@ def compute_kmeans_runs(strike, dip, plunge, bearing, max_clusters=10, max_iter=
     return kmeans_data, elbow_metric
 
 
-def get_fracture_sets(strike, dip, n_clusters):
+def get_fracture_sets(strike, dip, n_clusters, balance=True):
 
     #ax.rake(strike, dip, marker='.', color='black')
     
+    count = 0
+    cond = True
+    
     # Find the two modes
-    
-    for i in range(0,100):
-      while True:
-          try:
-              centers = mpl.kmeans(strike, dip, num=n_clusters, measurement='poles', tolerance = 0.00005) # Função instável a ser substituída
-          except Exception:
-              continue
-          break
-    #centers = mpl.kmeans(strike, dip, num=n_clusters, measurement='poles') # Função instável a ser substituída
-    
-    
-    strike_cent, dip_cent = mpl.geographic2pole(*zip(*centers))
-    
-    labels = np.full((np.size(strike)), 0, dtype=np.int)
-    distances = np.full((np.size(strike), 1), np.inf)
-    
-    for i in range(np.shape(centers)[0]):
-        center = centers[i]
-        for j in range(0, np.shape(strike)[0]):
-          lat, lon = mpl.analysis._convert_measurements((strike[j], dip[j]), measurement='poles')
-          angle = mpl.stereonet_math.angular_distance(center, (lat, lon))
-          if angle < distances[j]:
-              distances[j] = angle
-              labels[j] = i
+    while cond:
+        for i in range(0,100):
+          while True:
+              try:
+                  centers = mpl.kmeans(strike, dip, num=n_clusters, measurement='poles', tolerance = 0.00001) # Função instável a ser substituída
+              except Exception:
+                  continue
+              break
+        #centers = mpl.kmeans(strike, dip, num=n_clusters, measurement='poles') # Função instável a ser substituída
+        
+        
+        strike_cent, dip_cent = mpl.geographic2pole(*zip(*centers))
+        
+        labels = np.full((np.size(strike)), 0, dtype=np.int64)
+        distances = np.full((np.size(strike), 1), np.inf)
+        
+        for i in range(np.shape(centers)[0]):
+            center = centers[i]
+            for j in range(0, np.shape(strike)[0]):
+              lat, lon = mpl.analysis._convert_measurements((strike[j], dip[j]), measurement='poles')
+              angle = mpl.stereonet_math.angular_distance(center, (lat, lon))
+              if angle < distances[j]:
+                  distances[j] = angle
+                  labels[j] = i
+                  
+                  
+        # Check if clusters with only one item exists. If true retry       
+        for i in range(n_clusters):
+            if np.size(strike[np.where(labels == i)]) < 2:
+                print("exit condition")
+                count += 1
+                cond = True
+                break
+                  
+
+        if balance == True:
+            k_fisher = []
+            for i in range(n_clusters):
+                if np.size(strike[np.where(labels == i)]) > 1:
+                    plunge, bearing = mpl.pole2plunge_bearing(strike[np.where(labels == i)], dip[np.where(labels == i)])
+                    vector, stats = mpl.find_fisher_stats(plunge, bearing, conf=95)
+                    k_fisher.append(stats[2])
+
+        
+            if np.size(k_fisher) < n_clusters:
+                count += 1
+                cond = True
+            # if np.sum(np.where(k_fisher <= np.mean(k_fisher)-np.std(k_fisher), k_fisher, 0)) >= 1:
+            elif np.sum(np.where(k_fisher < np.max(k_fisher)*0.25, k_fisher, 0)) >= 1:
+                count += 1
+                cond = True
+            else:
+                cond = False
+                print(str(count+1)+" balancing tries.")
+        else:
+            cond = False
     
     return labels, centers

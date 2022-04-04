@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import mplstereonet as mpl
 from time import time
 from frac3D.file_handling import load_planes_from_file
-from frac3D.plot import *
+from frac3D.plot import fisher_plot, compute_fracture_sets_fisher, dfn_plot, fracture_planes_plot, compute_p32_statistics
 from frac3D.fracture_clustering import compute_kmeans_runs, optimal_number_of_clusters, get_fracture_sets
 from frac3D.fracture_generator import generator
 from frac3D.fracture_stats import  compute_fracture_sets_spacing # compute_fracture_sets_fisher,
@@ -61,30 +61,46 @@ print(end-start)
 elbow = np.reshape(elbow, (int(np.shape(elbow)[0]/max_clusters), max_clusters))
 elbow = np.where(elbow == np.inf, np.nan, elbow) 
 max_K2 = np.nanmax(np.power(np.nanmean(elbow, axis=1), 2))
-kmeans_data2 = max_K2-np.power(np.nanmean(elbow, axis=1), 2)
-n_clusters = optimal_number_of_clusters(kmeans_data, 1)
-
+kmeans_data2 = np.power(np.nanmean(elbow, axis=1), 2)/max_K2
+n_clusters = optimal_number_of_clusters(kmeans_data2[0:10], 0)
 
 # Plot Elbow method
-fig = plt.figure(10, figsize=(8,4))
+fig = plt.figure(10, figsize=(12,4))
 ax1 = fig.add_subplot()
-ax1.plot(list(range(1, 10)), kmeans_data[0:9] , 'go-')
+ax1.plot(list(range(1, 10)), kmeans_data2[0:9] , 'go-')
 # ax1.set_yscale('log')
 # ax1.set_title('K-means Elbow method with Fisher k sum'),
 ax1.set_xlabel('Number of clusters', fontsize=14)
-ax1.set_ylabel('Sum of Fisher k', fontsize=14)
+ax1.set_ylabel('Normalized squared \n mean of Fisher k', fontsize=14)
 plt.xticks(fontsize=14)
 plt.yticks(fontsize=14)
 fig.show()
 
+# Number of clusters defined
+n_clusters = 7
+
+# Evaluate k-means clustering with and without the stabilization check
+k_stats_balanced = []
+k_stats_not_balanced = []
+for i in range(0, 10):
+    labels_temp, centers_temp = get_fracture_sets(strike, dip, n_clusters, balance=False)
+    plane_stats_temp = compute_fracture_sets_fisher(strike, dip, plunge, bearing, n_clusters, labels_temp, plot=False)
+    k_stats_not_balanced.append(plane_stats_temp[:,4])
+    
+    labels_temp, centers_temp = get_fracture_sets(strike, dip, n_clusters, balance=True)
+    plane_stats_temp = compute_fracture_sets_fisher(strike, dip, plunge, bearing, n_clusters, labels_temp, plot=False)
+    k_stats_balanced.append(plane_stats_temp[:,4])
+    
+k_stats_balanced = np.asarray(k_stats_balanced)
+k_stats_not_balanced = np.asarray(k_stats_not_balanced)
+
 
 # Generate Fisher and spacing statistics
-n_clusters = 7
-labels, centers = get_fracture_sets(strike, dip, n_clusters)
+labels, centers = get_fracture_sets(strike, dip, n_clusters, balance=True)
 # np.save('cluster_labels.npy', labels)
 # labels = np.load('cluster_labels.npy')
 
-plane_stats = compute_fracture_sets_fisher(strike, dip, plunge, bearing, n_clusters, labels)
+plane_stats = compute_fracture_sets_fisher(strike, dip, plunge, bearing, n_clusters, labels, plot=False)
 spacing_stats = compute_fracture_sets_spacing(labels, n_clusters, a, b, c, d)
 
 plot_stereonet(strike, dip, labels, n_clusters, plane_stats, mode='pole')
@@ -107,13 +123,45 @@ print(end-start)
 
 
 # Plot fracture intensity model and generated fractures
-fracture_planes_plot(n_clusters, new_normals2, new_centroids, model_dimension, fracture_plane_size)
-dfn_plot(p_32_statistics, offsets, dfn_cell_size, 0, 200, model_dimension, only_walls=True)
+fracture_planes_plot(n_clusters, new_normals, new_centroids, model_dimension, fracture_plane_size)
+dfn_plot(p_32_statistics, offsets, dfn_cell_size, -1, 200, model_dimension, only_walls=True)
 
 # Plot statistics
 mean_p_32 = np.mean(p_32_statistics)
 sd_mean_p32 = np.std(p_32_statistics)
 print(mean_p_32, sd_mean_p32)
+
+
+plane_stats2 = compute_fisher_from_normals(new_normals)
+plot_stereonet_from_normals(new_normals, mode='pole')
+
+
+
+# Validation of the stochastic generation
+model_dimension = [40, 40, 40] # 40, 40, 40
+fracture_plane_size = 4 
+
+
+distances = []
+directions = []
+for i in range(0, 30):
+    new_normals_temp, new_centroids_temp = generator(n_clusters, plane_stats, spacing_stats, model_dimension, fracture_plane_size)
+    plane_stats_temp_stochastic = compute_fisher_from_normals(new_normals_temp, plot=False)
+    for i in range(0, n_clusters):
+        distances.append(compare_centers(plane_stats[i, 0:2], plane_stats_temp_stochastic[i, 0:2])[0])
+        directions.append(plane_stats_temp_stochastic[i,0:2])
+distances = np.reshape(distances, (30, 7))
+directions = np.reshape(directions, (30, 7, 2))
+
+np.mean(distances, axis=0)
+np.std(distances, axis=0)
+
+for i in range(0, n_clusters):
+    plunge_temp, bearing_temp = mpl.pole2plunge_bearing(directions[:, i, 0], directions[:, i, 1])
+    vector, stats = mpl.find_fisher_stats(plunge_temp, bearing_temp, conf=95)
+    mean_strike, mean_dip = mpl.plunge_bearing2pole(vector[0], vector[1])
+    print(mean_strike, mean_dip)
+    
 
 
 # # Save model
