@@ -3,6 +3,7 @@ from scipy.spatial import Delaunay
 import mplstereonet as mpl
 import math
 import open3d as o3d
+import concurrent.futures
 from .geometry import Cube, surface_area, triangle_area, plane_rotate, intersect_line_triangle
 
 
@@ -63,43 +64,43 @@ def compare_centers(center_a, center_b):
     
     return angle
 
-def normals_to_stikedip(normals):
+# def normals_to_stikedip(normals):
     
-    strike = []
-    dip = []
+#     strike = []
+#     dip = []
     
-    # print(np.shape(normals)[0])
-    for i in range(0, np.shape(normals)[0]):
+#     # print(np.shape(normals)[0])
+#     for i in range(0, np.shape(normals)[0]):
         
-        normal = normals[i]
-        # centroid = centroids[i]
+#         normal = normals[i]
+#         # centroid = centroids[i]
     
-        # d = -centroid.dot(normal)
+#         # d = -centroid.dot(normal)
 
-        a, b, c = normal
-        alpha = math.acos(abs(c/(math.sqrt((math.pow(a, 2) + math.pow(b, 2)
-                                            + math.pow(c, 2))))))
-        beta = math.acos(a/(math.sqrt(math.pow(a, 2) + math.pow(b, 2))))
+#         a, b, c = normal
+#         alpha = math.acos(abs(c/(math.sqrt((math.pow(a, 2) + math.pow(b, 2)
+#                                             + math.pow(c, 2))))))
+#         beta = math.acos(a/(math.sqrt(math.pow(a, 2) + math.pow(b, 2))))
     
-        dip.append(math.degrees(alpha))
-        # a_value.append(a)
-        # b_value.append(b)
-        # c_value.append(c)
-        # d_value.append(d)
+#         dip.append(math.degrees(alpha))
+#         # a_value.append(a)
+#         # b_value.append(b)
+#         # c_value.append(c)
+#         # d_value.append(d)
     
-        if a > 0 and c < 0: # quadrante 2 #*
-            strike.append(360-math.degrees(beta))
-        elif a > 0 and c > 0: # quadrante 3
-            strike.append(math.degrees(beta)) #* 180+
-        elif a < 0 and c < 0: # quadrante 4
-            strike.append(180+math.degrees(beta)) #*
-        else: # quadrante 1
-            strike.append(180-math.degrees(beta))
+#         if a > 0 and c < 0: # quadrante 2 #*
+#             strike.append(360-math.degrees(beta))
+#         elif a > 0 and c > 0: # quadrante 3
+#             strike.append(math.degrees(beta)) #* 180+
+#         elif a < 0 and c < 0: # quadrante 4
+#             strike.append(180+math.degrees(beta)) #*
+#         else: # quadrante 1
+#             strike.append(180-math.degrees(beta))
             
-    strike = np.asarray(strike)
-    dip = np.asarray(dip)
+#     strike = np.asarray(strike)
+#     dip = np.asarray(dip)
             
-    return strike, dip
+#     return strike, dip
 
 
 def compute_fracture_sets_spacing(labels, n_clusters, a, b, c, d):
@@ -285,3 +286,155 @@ def compute_p32_statistics(new_normals, new_centroids, model_dimension, cube_siz
         intensity_values.append(P32)
 
     return intensity_values, offsets
+
+
+
+def compute_p32_statistics_thread(new_normals, new_centroids, model_dimension, cube_size=4, plane_size=4, extrapolate=0):
+
+    # Format inputs to     
+    normals = np.asarray([item for sublist in new_normals for item in sublist])
+    centroids = np.asarray([item for sublist in new_centroids for item in sublist])
+    
+  
+    # Data range
+    x_range = np.asarray([0, model_dimension[0]]) + np.asarray([-extrapolate, extrapolate])
+    y_range = np.asarray([0, model_dimension[1]]) + np.asarray([-extrapolate, extrapolate])
+    z_range = np.asarray([0, model_dimension[2]]) + np.asarray([-extrapolate, extrapolate])
+    
+    # Maximum quantity of cubes in each dimension
+    maxX = (x_range[1] - x_range[0])/(cube_size*2)
+    maxY = (y_range[1] - y_range[0])/(cube_size*2)
+    maxZ = (z_range[1] - z_range[0])/(cube_size*2)
+    
+    offsets = []
+    for i in range(0, math.ceil(maxX)):
+        for j in range(0, math.ceil(maxY)):
+            for k in range(0, math.ceil(maxZ)):
+                x0 = float(i*cube_size*2) + cube_size + int(x_range[0])
+                y0 = float(j*cube_size*2) + cube_size + int(y_range[0])
+                z0 = float(k*cube_size*2) + cube_size + int(z_range[0])
+                offsets.append((x0, y0, z0))
+    
+    
+    
+    # progress_count = 0
+    # progress_total = np.shape(offsets)[0]*np.shape(normals)[0]
+    # printProgressBar(0, progress_total, prefix = 'Progress:', suffix = 'Complete', length = 50)
+    
+
+    intensity_values = []
+    
+    # intensity_values = compute_box_intensity(offsets, normals, centroids, plane_size, cube_size)
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        future = executor.submit(compute_box_intensity, offsets, normals, centroids, plane_size, cube_size)
+        intensity_values.append(future.result())
+        # print(future.result())
+    
+
+
+    return intensity_values[0], np.asarray(offsets)
+
+
+def compute_box_intensity(offsets, normals, centroids, plane_size, cube_size):
+    
+    intensity_values = []
+    for offset in offsets:
+        cube_definitions = Cube(cube_size, offset)
+        edges = cube_definitions.edges
+        vertices = cube_definitions.vertices
+        sum_area = 0
+
+
+        for p in range(0, np.shape(normals)[0]):            
+            frac_points = np.asarray([[-1, -1,0],[1,-1,0],[1,1,0], [-1,1,0]]) # base horizontal plane
+            frac_points = frac_points*plane_size
+            frac_points = plane_rotate(frac_points, normals[p], centroids[p])
+            
+            points = []
+   
+            # Cube faces
+            faces = [[0,2,3], [2,6,3], [0,5,1], [0,2,5], [1,4,5], [4,7,5],
+                      [4,3,6], [4,7,6], [0,1,4], [0,3,4], [2,5,7], [2,6,7]]
+            np_triangles = np.array(faces).astype(np.int32)
+            cube_mesh = o3d.geometry.TriangleMesh()
+            cube_mesh.vertices = o3d.utility.Vector3dVector(vertices)
+            cube_mesh.triangles = o3d.utility.Vector3iVector(np_triangles)
+            
+            
+            face_mesh = o3d.geometry.TriangleMesh()
+            np_vertices = np.array(frac_points)
+            np_triangles = np.array([[0, 1, 2], [0, 2, 3]]).astype(np.int32)
+            
+            face_mesh.vertices = o3d.utility.Vector3dVector(np_vertices)
+            face_mesh.triangles = o3d.utility.Vector3iVector(np_triangles)
+            face_mesh.compute_vertex_normals()
+            
+            # o3d.visualization.draw_geometries([face_mesh, cube_mesh], mesh_show_back_face=True, mesh_show_wireframe=True)
+            
+            
+            if face_mesh.is_intersecting(cube_mesh):
+                
+                
+                # check if points from fracture plane are inside cube
+                for i in range(0, 4):
+                    # res = in_poly_hull_single(vertices, frac_points[i])
+                    res = Delaunay(vertices).find_simplex(frac_points[i])
+                    if res >=0:
+                        points.append(frac_points[i])
+
+                
+                # check if fracture edges cross the cube faces
+                for i in range(0, 4): 
+                    if i == 3:
+                        point_a = frac_points[i]
+                        point_b = frac_points[0]
+                    else:
+                        point_a = frac_points[i]
+                        point_b = frac_points[i+1]
+                
+                
+                    for j in range(0, 6): # for each cube face
+                        face = cube_definitions.faces[j]
+                        point = intersect_line_triangle(point_a, point_b, 
+                                                        face[0],face[1],face[2])
+                        
+                        if isinstance(point, np.ndarray):
+                            points.append(point)
+                        
+                        point = intersect_line_triangle(point_a, point_b, 
+                                                        face[0],face[2],face[3])
+                        
+                        if isinstance(point, np.ndarray):
+                            points.append(point)
+
+                
+                # check cube edges cross the fracture area
+                for edge in edges:
+                    point = intersect_line_triangle(edge[0], edge[1],
+                                                    frac_points[0], frac_points[1], frac_points[2])
+                    
+                    if isinstance(point, np.ndarray):
+                        points.append(point)
+                    
+                    point = intersect_line_triangle(edge[0], edge[1],
+                                                    frac_points[0], frac_points[2], frac_points[3])
+                    
+                    if isinstance(point, np.ndarray):
+                        points.append(point)
+
+
+            if np.shape(points)[0] != 0:
+                points = np.asarray(points)
+                if np.shape(points)[0] > 3:
+                    sum_area += surface_area(points)
+                else:
+                    sum_area += triangle_area(points)
+
+            # progress_count+=1
+            # printProgressBar(progress_count, progress_total, prefix = 'Progress:', suffix = 'Complete', length = 50)
+
+        P32 = sum_area/((cube_size*2)*(cube_size*2)*(cube_size*2))
+        intensity_values.append(P32)
+        
+    return intensity_values

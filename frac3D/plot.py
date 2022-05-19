@@ -1,11 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import math
 import colorsys
 import mplstereonet as mpl
 import open3d as o3d
 from .geometry import plane_rotate, Cube
-from .fracture_stats import normals_to_stikedip
+# from .fracture_stats import normals_to_stikedip
 # from .fracture_stats import fisher_stats
 
 
@@ -82,6 +83,45 @@ def fisher_plot(plunge, bearing, strike, dip, plot=True):
         plt.show()
     
     return mean_strike[0], mean_dip[0], stats
+
+
+def normals_to_stikedip(normals):
+    
+    strike = []
+    dip = []
+    
+    # print(np.shape(normals)[0])
+    for i in range(0, np.shape(normals)[0]):
+        
+        normal = normals[i]
+        # centroid = centroids[i]
+    
+        # d = -centroid.dot(normal)
+
+        a, b, c = normal
+        alpha = math.acos(abs(c/(math.sqrt((math.pow(a, 2) + math.pow(b, 2)
+                                            + math.pow(c, 2))))))
+        beta = math.acos(a/(math.sqrt(math.pow(a, 2) + math.pow(b, 2))))
+    
+        dip.append(math.degrees(alpha))
+        # a_value.append(a)
+        # b_value.append(b)
+        # c_value.append(c)
+        # d_value.append(d)
+    
+        if a > 0 and c < 0: # quadrante 2 #*
+            strike.append(360-math.degrees(beta))
+        elif a > 0 and c > 0: # quadrante 3
+            strike.append(math.degrees(beta)) #* 180+
+        elif a < 0 and c < 0: # quadrante 4
+            strike.append(180+math.degrees(beta)) #*
+        else: # quadrante 1
+            strike.append(180-math.degrees(beta))
+            
+    strike = np.asarray(strike)
+    dip = np.asarray(dip)
+            
+    return strike, dip
 
     
    

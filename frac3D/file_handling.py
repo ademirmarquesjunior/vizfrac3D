@@ -93,3 +93,74 @@ def load_planes_from_file(File):
     normals = np.asarray(normals)
 
     return strike, dip, normals, centroids, a_value, b_value, c_value, d_value
+
+
+def load_planes_from_file_xpp(File):
+    #File = 'SoledadeRavinaLocal.xpp'
+    strike = []
+    dip = []
+    centroids = []
+    normals = []
+    a_value = []
+    b_value = []
+    c_value = []
+    d_value = []
+    with open(File) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter='|')
+
+        row_count = 0
+        for row in csv_reader:
+          for cell in row:
+            if cell == 'Plane':
+              planes_start = int(row[2])
+              planes_end = int(row[2]) + int(row[1])
+              break
+          if 'planes_start' in locals():
+              if row_count >= planes_start and row_count < planes_end:
+                points = []
+                row_values = row[6].split()
+                for i in range(np.size(row_values)):
+                  if i > 2 and i < np.size(row_values):
+                    points.append(float(row_values[i]))
+                points = np.reshape(points, (int(np.size(points)/3), 3))
+                points = np.asarray([points[:,0], points[:,2], -points[:,1]]).T
+    
+                pca = PCA(n_components=3)
+                pca.fit(points)
+                eig_vec = pca.components_
+    
+                normal = eig_vec[2, :]  # (a, b, c)
+                normals.append(normal)
+                centroid = np.mean(points, axis=0)
+                centroids.append(centroid)
+    
+                d = -centroid.dot(normal)
+    
+                a, b, c = normal
+                alpha = math.acos(abs(c/(math.sqrt((math.pow(a, 2) + math.pow(b, 2)
+                                                    + math.pow(c, 2))))))
+                beta = math.acos(a/(math.sqrt(math.pow(a, 2) + math.pow(b, 2))))
+    
+                dip.append(math.degrees(alpha))
+                a_value.append(a)
+                b_value.append(b)
+                c_value.append(c)
+                d_value.append(d)
+    
+                if a > 0 and b > 0: # quadrante 2 #*
+                    strike.append(360-math.degrees(beta))
+                elif a > 0 and b < 0: # quadrante 3
+                    strike.append(180+math.degrees(beta)) #* 180+
+                elif a < 0 and b < 0: # quadrante 4
+                    strike.append(math.degrees(beta)) #*
+                else: # quadrante 1
+                    strike.append(math.degrees(beta))
+
+          row_count += 1
+          
+    strike = np.asarray(strike)
+    dip = np.asarray(dip)
+    centroids = np.asarray(centroids)
+    normals = np.asarray(normals)
+
+    return strike, dip, normals, centroids, a_value, b_value, c_value, d_value
