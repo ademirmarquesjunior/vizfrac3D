@@ -10,8 +10,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import mplstereonet as mpl
 from time import time
-from frac3D.file_handling import load_planes_from_file, load_planes_from_file_xpp
-from frac3D.plot import compute_fracture_sets_fisher, dfn_plot, fracture_planes_plot, plot_stereonet, compute_fisher_from_normals
+import open3d as o3d
+from frac3D.file_handling import load_planes_from_file, load_planes_from_file_xpp, load_planes_from_shapefile, export_dfn_csv, export_planes_from_normals
+from frac3D.plot import compute_fracture_sets_fisher, dfn_plot, fracture_planes_plot, plot_stereonet, compute_fisher_from_normals, plot_stereonet_from_normals, normals_to_stikedip
 from frac3D.fracture_clustering import compute_kmeans_runs, optimal_number_of_clusters, get_fracture_sets
 from frac3D.fracture_generator import generator
 from frac3D.fracture_stats import  compute_fracture_sets_spacing, compute_p32_statistics, compute_p32_statistics_thread, compare_centers
@@ -19,7 +20,11 @@ from frac3D.fracture_stats import  compute_fracture_sets_spacing, compute_p32_st
 
 # Loading Plane data from Mosis XP
 # strike, dip, normals, centroids, a, b, c, d = load_planes_from_file('data/SoledadeRavinaVR.data') # Soledade_VR.data
-strike, dip, normals, centroids, a, b, c, d = load_planes_from_file_xpp('data/SoledadeRavinaLocal.xpp') 
+strike, dip, normals, centroids, a, b, c, d = load_planes_from_file_xpp('data/SoledadeRavinaLocal.xpp')
+# strike, dip, normals, centroids, a, b, c, d, model_center = load_planes_from_shapefile('data/GaivotaLocal_planeA')
+
+
+
 centroids = centroids-[np.min(centroids[:,0]), np.min(centroids[:,1]), np.min(centroids[:,2])]
 
 strike = np.where(strike > 180, strike - 180, strike)
@@ -31,19 +36,26 @@ rake = np.where(np.isnan(rake), 89, rake)
 
 
 # Plot deterministic fracture planes
-fracture_planes_plot(n_clusters=1, new_normals=np.reshape(normals, (1,-1, 3)), new_centroids=np.reshape(centroids, (1,-1, 3)), model_dimension = [100,100,100], plane_size=4)
+fracture_planes_plot(n_clusters=1, new_normals=np.reshape(normals, (1, -1, 3)),
+                    new_centroids=np.reshape(centroids, (1,-1, 3)), model_dimension = [100,100,100], plane_size=1,
+                    strike=np.reshape(strike, (1,-1, 1)), dip=np.reshape(dip, (1,-1, 1)))
+
 
 
 # Compute fracture intensity and plot deterministics DFN 
 model_dimension = [100, 50, 5]
-model_center = [np.max(centroids[:, 0]), np.max(centroids[:, 0]), np.max(centroids[:, 0])]
+model_center = [np.min(centroids[:, 0]), np.min(centroids[:, 1]), np.min(centroids[:, 2])]
 fracture_plane_size = 4
 dfn_cell_size = 2
 start = time()
 p_32_statistics, offsets = compute_p32_statistics(np.reshape(normals, (1,-1, 3)), np.reshape(centroids-model_center, (1,-1, 3)), model_dimension, dfn_cell_size, fracture_plane_size, 0)
 end = time()
 print(end-start)
-dfn_plot(p_32_statistics, offsets, dfn_cell_size, -1, 200, model_dimension, only_walls=False)
+mesh = dfn_plot(p_32_statistics, offsets, dfn_cell_size, -1, 220, model_dimension, only_walls=False)
+o3d.io.write_triangle_mesh("dfn2.obj", mesh, write_vertex_normals=False)
+
+
+
 
 
 # Compute k-means runs for the modified elbow method
@@ -96,38 +108,59 @@ for i in range(0, 10):
 k_stats_balanced = np.asarray(k_stats_balanced)
 k_stats_not_balanced = np.asarray(k_stats_not_balanced)
 
+np.mean(k_stats_balanced[:,6]), np.std(k_stats_balanced[:,6]), np.min(k_stats_balanced[:,6]), np.max(k_stats_balanced[:,6])
+np.mean(k_stats_not_balanced[:,6]), np.std(k_stats_not_balanced[:,6]), np.min(k_stats_not_balanced[:,6]), np.max(k_stats_not_balanced[:,6])
+
+np.mean(k_stats_balanced), np.std(k_stats_balanced), np.min(k_stats_balanced), np.max(k_stats_balanced)
+np.mean(k_stats_not_balanced), np.std(k_stats_not_balanced), np.min(k_stats_not_balanced), np.max(k_stats_not_balanced)
+
 
 # Generate Fisher and spacing statistics
-labels, centers = get_fracture_sets(strike, dip, n_clusters, balance=True)
+subset = np.random.choice(list(range(0, 490)), 100, False)
+labels, centers = get_fracture_sets(strike[subset], dip[subset], n_clusters, balance=True)
 # np.save('cluster_labels.npy', labels)
 # labels = np.load('cluster_labels.npy')
 
-plane_stats = compute_fracture_sets_fisher(strike, dip, plunge, bearing, n_clusters, labels, plot=True)
-spacing_stats = compute_fracture_sets_spacing(labels, n_clusters, a, b, c, d)
+for i in range(0, n_clusters):
+    print(np.size(np.where(labels==i)))
 
-plot_stereonet(strike, dip, labels, n_clusters, plane_stats, mode='pole')
+plane_stats = compute_fracture_sets_fisher(strike[subset], dip[subset], plunge[subset], bearing[subset], n_clusters, labels, plot=False)
+spacing_stats = compute_fracture_sets_spacing(labels, n_clusters, np.asarray(a)[subset], np.asarray(b)[subset], np.asarray(c)[subset], np.asarray(d)[subset])
+
+plot_stereonet(strike[subset], dip[subset], labels, n_clusters, plane_stats, mode='pole')
 # plot_stereonet(strike, dip, labels, n_clusters, plane_stats, mode='plane')
 
 
 
 # Generate new DFN model
+model_dimension = [440, 320, 40] # 40. 40, 40
+fracture_plane_size = 20
+dfn_cell_size = 10 # 0.5
+
 model_dimension = [40, 40, 40] # 40. 40, 40
-fracture_plane_size = 4 
+fracture_plane_size = 4
 dfn_cell_size = 0.5 # 0.5
 
 # Gerar novos planos de fraturas e computar estatísticas
 new_normals, new_centroids = generator(n_clusters, plane_stats, spacing_stats, model_dimension, fracture_plane_size)
 
 start = time()
-# p_32_statistics, offsets = compute_p32_statistics(new_normals, new_centroids, model_dimension, dfn_cell_size, fracture_plane_size, 0)
+p_32_statistics, offsets = compute_p32_statistics(new_normals, new_centroids, model_dimension, dfn_cell_size, fracture_plane_size, 0)
 p_32_statistics, offsets = compute_p32_statistics_thread(new_normals, new_centroids, model_dimension, dfn_cell_size, fracture_plane_size, 0)
 end = time()
 print(end-start)
 
 
+temp_offsets = np.copy(offsets)
+offsets = np.asarray(offsets)
+offsets[:,0] = model_center[0] + offsets[:,0]
+offsets[:,1] = model_center[1] - offsets[:,1]
+offsets[:,2] = offsets[:,2] + 40 
+
 # Plot fracture intensity model and generated fractures
 fracture_planes_plot(n_clusters, new_normals, new_centroids, model_dimension, fracture_plane_size)
-dfn_plot(p_32_statistics, offsets, dfn_cell_size, -1, 200, model_dimension, only_walls=True)
+mesh = dfn_plot(p_32_statistics, offsets, dfn_cell_size, -1, 200, model_dimension, only_walls=False)
+
 
 # Plot statistics
 mean_p_32 = np.mean(p_32_statistics)
@@ -137,14 +170,16 @@ print(mean_p_32, sd_mean_p32)
 
 plane_stats2 = compute_fisher_from_normals(new_normals)
 plot_stereonet_from_normals(new_normals, mode='pole')
+    
+
+export_planes_from_normals('planes_440_320.csv', new_normals, new_centroids, model_center, z_offset=40)
+export_dfn_csv('dfn3d.csv', offsets, p_32_statistics)
 
 
 
 # Validation of the stochastic generation
 model_dimension = [40, 40, 40] # 40, 40, 40
-fracture_plane_size = 4 
-
-
+fracture_plane_size = 4
 distances = []
 directions = []
 for i in range(0, 30):
@@ -177,12 +212,12 @@ for i in range(0, n_clusters):
 #     np.save(f, p_32_statistics)
 #     np.save(f, offsets)
 
-# Load model
-# with open('model_data_40model_1_cell.npy', 'rb') as f:
-#     new_normals = np.load(f, allow_pickle=True)
-#     new_centroids = np.load(f, allow_pickle=True)
-#     model_dimension = np.load(f, allow_pickle=True)
-#     fracture_plane_size = np.load(f, allow_pickle=True)
-#     dfn_cell_size = np.load(f, allow_pickle=True)
-#     p_32_statistics = np.load(f, allow_pickle=True)
-#     offsets = np.load(f, allow_pickle=True)
+# # Load model
+with open('model_data_40model_1_cell.npy', 'rb') as f:
+    new_normals = np.load(f, allow_pickle=True)
+    new_centroids = np.load(f, allow_pickle=True)
+    model_dimension = np.load(f, allow_pickle=True)
+    fracture_plane_size = np.load(f, allow_pickle=True)
+    dfn_cell_size = np.load(f, allow_pickle=True)
+    p_32_statistics = np.load(f, allow_pickle=True)
+    offsets = np.load(f, allow_pickle=True)

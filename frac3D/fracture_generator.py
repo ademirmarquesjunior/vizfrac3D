@@ -35,7 +35,7 @@ def generator(n_clusters, direction_stats, spacing_stats, model_dimension, plane
             
             normals_temp.append(np.rot90(normal))
 
-            centroids = np.rot90((np.random.uniform(0, max_x, size=n_fractures), np.random.uniform(0, max_y, size=n_fractures), np.full(n_fractures, i*plane_size)))
+            centroids = np.rot90((np.random.uniform(0, max_x, size=n_fractures), np.random.uniform(0, max_y, size=n_fractures), np.full(n_fractures, i*plane_size) + np.random.random(n_fractures)*plane_size))
             centroids_temp.append(centroids)
             
 

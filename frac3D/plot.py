@@ -216,7 +216,7 @@ def plot_stereonet_from_normals(new_normals, mode='pole'):
     
 
 
-def fracture_planes_plot(n_clusters, new_normals, new_centroids, model_dimension, plane_size=10):
+def fracture_planes_plot(n_clusters, new_normals, new_centroids, model_dimension, plane_size=10, strike=[], dip=[]):
     
     #model_center = model_dimension/2
     # points = np.asarray([[-1, 0,-1],[1,0,-1],[1,0,1], [-1,0,1]]) # base vertical square
@@ -235,6 +235,9 @@ def fracture_planes_plot(n_clusters, new_normals, new_centroids, model_dimension
             centroid = new_centroids[i][j]
             
             new_points = plane_rotate(points, normal, centroid)
+            # new_points = []
+            # for point in points:
+            #     new_points.append(point + centroid)
             
             
             mesh = o3d.geometry.TriangleMesh()
@@ -245,10 +248,20 @@ def fracture_planes_plot(n_clusters, new_normals, new_centroids, model_dimension
             mesh.triangles = o3d.utility.Vector3iVector(np_triangles)
             mesh.paint_uniform_color(rgb_colors[i])
             mesh.compute_vertex_normals()
+
+            # mesh.rotate(mesh.get_rotation_matrix_from_axis_angle([np.deg2rad(dip[i][j]), 0, 0]), center=centroid) # [np.deg2rad(dip[i][j]), 0, 0]
+            # mesh.rotate(mesh.get_rotation_matrix_from_axis_angle([0, 0, np.deg2rad(90+strike[i][j])]), center=centroid) # [0, 0, np.deg2rad(strike[i][j])]
+
+            # arrow = o3d.geometry.create_mesh_arrow()
+            # arrow.rotate(arrow.get_rotation_matrix_from_axis_angle([np.deg2rad(dip[i][j]), 0, 0]), center=centroid)
+            # arrow.rotate(arrow.get_rotation_matrix_from_axis_angle([0, 0, np.deg2rad(90+strike[i][j])]), center=centroid)
+
+
             meshes.append(mesh)
+            # meshes.append(arrow)
             
     mesh_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
-    size=4, origin=[-4, -4, -4])
+    size=4, origin=[-8, -8, -4])
     
     meshes.append(mesh_frame)
             
@@ -334,8 +347,14 @@ def dfn_plot(intensity_values, offsets, cube_size, cut_out, reference_angle_colo
     mesh_list.append(mesh_frame)
             
     o3d.visualization.draw_geometries(mesh_list, mesh_show_back_face=True)
+
+    new_mesh = mesh_list[0]
+    for i in range(1, np.size(mesh_list)-1):
+        new_mesh = new_mesh + mesh_list[i]
+
+    new_mesh = o3d.geometry.TriangleMesh.remove_duplicated_triangles(new_mesh)
     
-    return
+    return new_mesh
 
 
 def compute_fracture_sets_fisher(strike, dip, plunge, bearing, n_clusters, labels, plot=False):

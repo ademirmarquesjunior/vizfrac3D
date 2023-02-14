@@ -323,13 +323,21 @@ def compute_p32_statistics_thread(new_normals, new_centroids, model_dimension, c
     
 
     intensity_values = []
-    
-    # intensity_values = compute_box_intensity(offsets, normals, centroids, plane_size, cube_size)
-    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         future = executor.submit(compute_box_intensity, offsets, normals, centroids, plane_size, cube_size)
         intensity_values.append(future.result())
         # print(future.result())
+        
+        
+    # intensity_values = []
+    # thread_pool = []
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+    #     for i in range(0,10):
+    #         future = executor.submit(compute_box_intensity, offsets[np.int64(np.shape(offsets)[0]/10*i):np.int64((i+1)*np.shape(offsets)[0]/10)], normals, centroids, plane_size, cube_size)
+    #         thread_pool.append(future)
+            
+    #     for thread in thread_pool:
+    #         intensity_values.append(thread.result())
     
 
 
