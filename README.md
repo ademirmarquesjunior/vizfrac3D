@@ -56,9 +56,17 @@ All source code is made available under a BSD 3-clause license. You can freely u
 
 ## How to cite
 
-If you find our work useful in your research please consider citing one of our papers:
+If you find our work useful in your research please consider citing one of the following papers:
 
 ```bash
-To be published
+@ARTICLE{9794644,
+  author={Racolte, Graciela and Marques, Ademir and Scalco, Leonardo and Tonietto, Leandro and Zanotta, Daniel Capella and Cazarin, Caroline Lessio and Gonzaga, Luiz and Veronez, Maurício Roberto},
+  journal={IEEE Access}, 
+  title={Spherical K-Means and Elbow Method Optimizations With Fisher Statistics for 3D Stochastic DFN From Virtual Outcrop Models}, 
+  year={2022},
+  volume={10},
+  number={},
+  pages={63723-63735},
+  doi={10.1109/ACCESS.2022.3182332}}
 ```
 
