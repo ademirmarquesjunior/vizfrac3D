@@ -153,13 +153,8 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
         print()
 
 
-def compute_p32_statistics(new_normals, new_centroids, model_dimension, cube_size, plane_size, extrapolate):
+def get_dfn_cell_centers(model_dimension, cube_size, extrapolate):
 
-    # Format inputs to     
-    normals = np.asarray([item for sublist in new_normals for item in sublist])
-    centroids = np.asarray([item for sublist in new_centroids for item in sublist])
-    
-  
     # Data range
     x_range = np.asarray([0, model_dimension[0]]) + np.asarray([-extrapolate, extrapolate])
     y_range = np.asarray([0, model_dimension[1]]) + np.asarray([-extrapolate, extrapolate])
@@ -170,15 +165,25 @@ def compute_p32_statistics(new_normals, new_centroids, model_dimension, cube_siz
     maxY = (y_range[1] - y_range[0])/(cube_size*2)
     maxZ = (z_range[1] - z_range[0])/(cube_size*2)
     
-    offsets = []
+    cell_centers = []
     for i in range(0, math.ceil(maxX)):
         for j in range(0, math.ceil(maxY)):
             for k in range(0, math.ceil(maxZ)):
                 x0 = float(i*cube_size*2) + cube_size + int(x_range[0])
                 y0 = float(j*cube_size*2) + cube_size + int(y_range[0])
                 z0 = float(k*cube_size*2) + cube_size + int(z_range[0])
-                offsets.append((x0, y0, z0))
-    
+                cell_centers.append((x0, y0, z0))
+
+    return cell_centers
+
+
+
+def compute_p32_statistics(new_normals, new_centroids, model_dimension, cube_size, plane_size, extrapolate):
+
+    # Format inputs to     
+    normals = np.asarray([item for sublist in new_normals for item in sublist])
+    centroids = np.asarray([item for sublist in new_centroids for item in sublist])
+    offsets = get_dfn_cell_centers(model_dimension, cube_size, extrapolate)
     
     
     progress_count = 0
@@ -188,9 +193,11 @@ def compute_p32_statistics(new_normals, new_centroids, model_dimension, cube_siz
 
     intensity_values = []
     for offset in offsets:
-        cube_definitions = Cube(cube_size, offset)
-        edges = cube_definitions.edges
-        vertices = cube_definitions.vertices
+        cube = Cube(cube_size, offset)
+        cube_mesh = o3d.geometry.TriangleMesh()
+        cube_mesh.vertices = o3d.utility.Vector3dVector(cube.vertices)
+        cube_mesh.triangles = o3d.utility.Vector3iVector(cube.triangles)
+
         sum_area = 0
 
 
@@ -200,16 +207,7 @@ def compute_p32_statistics(new_normals, new_centroids, model_dimension, cube_siz
             frac_points = plane_rotate(frac_points, normals[p], centroids[p])
             
             points = []
-   
-            # Cube faces
-            faces = [[0,2,3], [2,6,3], [0,5,1], [0,2,5], [1,4,5], [4,7,5],
-                      [4,3,6], [4,7,6], [0,1,4], [0,3,4], [2,5,7], [2,6,7]]
-            np_triangles = np.array(faces).astype(np.int32)
-            cube_mesh = o3d.geometry.TriangleMesh()
-            cube_mesh.vertices = o3d.utility.Vector3dVector(vertices)
-            cube_mesh.triangles = o3d.utility.Vector3iVector(np_triangles)
-            
-            
+
             face_mesh = o3d.geometry.TriangleMesh()
             np_vertices = np.array(frac_points)
             np_triangles = np.array([[0, 1, 2], [0, 2, 3]]).astype(np.int32)
@@ -227,7 +225,7 @@ def compute_p32_statistics(new_normals, new_centroids, model_dimension, cube_siz
                 # check if points from fracture plane are inside cube
                 for i in range(0, 4):
                     # res = in_poly_hull_single(vertices, frac_points[i])
-                    res = Delaunay(vertices).find_simplex(frac_points[i])
+                    res = Delaunay(cube.vertices).find_simplex(frac_points[i])
                     if res >=0:
                         points.append(frac_points[i])
 
@@ -243,7 +241,7 @@ def compute_p32_statistics(new_normals, new_centroids, model_dimension, cube_siz
                 
                 
                     for j in range(0, 6): # for each cube face
-                        face = cube_definitions.faces[j]
+                        face = cube.faces[j]
                         point = intersect_line_triangle(point_a, point_b, 
                                                         face[0],face[1],face[2])
                         
@@ -258,7 +256,7 @@ def compute_p32_statistics(new_normals, new_centroids, model_dimension, cube_siz
 
                 
                 # check cube edges cross the fracture area
-                for edge in edges:
+                for edge in cube.edges:
                     point = intersect_line_triangle(edge[0], edge[1],
                                                     frac_points[0], frac_points[1], frac_points[2])
                     
@@ -282,7 +280,7 @@ def compute_p32_statistics(new_normals, new_centroids, model_dimension, cube_siz
             progress_count+=1
             printProgressBar(progress_count, progress_total, prefix = 'Progress:', suffix = 'Complete', length = 50)
 
-        P32 = sum_area/((cube_size*2)*(cube_size*2)*(cube_size*2))
+        P32 = sum_area/(cube.volume())
         intensity_values.append(P32)
 
     return intensity_values, offsets

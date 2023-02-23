@@ -85,7 +85,7 @@ def surface_area(points):
 	
 class Cube():
     def __init__(self, cube_size, offset):
-        # vertices do cubo
+        # vertices
         V1 = [-1,1,1]
         V2 = [1,1,1]
         V3 = [-1,1,-1]
@@ -95,7 +95,7 @@ class Cube():
         V7 = [-1,-1,-1]
         V8 = [1,-1,-1]
 
-        # Face do cubo
+        # Faces
         F1 = [V1, V2, V6, V3]
         F2 = [V2, V5, V8, V6]
         F3 = [V5, V4, V7, V8]
@@ -103,7 +103,7 @@ class Cube():
         F5 = [V5, V2, V1, V4]
         F6 = [V6, V3, V7, V8]
 
-        # Arestas do cubo
+        # Edges
         E1 = [V1, V2]
         E2 = [V1, V3]
         E3 = [V2, V6]
@@ -128,6 +128,15 @@ class Cube():
         vertices = np.asarray([V1, V2, V3, V4, V5, V6, V7, V8])
         vertices = vertices*cube_size
         self.vertices = vertices + offset
+
+        # indexes in triangles are cube vertices
+        triangles = [[0,2,3], [2,6,3], [0,5,1], [0,2,5], [1,4,5], [4,7,5],
+                      [4,3,6], [4,7,6], [0,1,4], [0,3,4], [2,5,7], [2,6,7]]
+        self.triangles = np.array(triangles).astype(np.int32)
+        self.edge_size = cube_size*2
+
+    def volume(self):
+        return (self.edge_size)*(self.edge_size)*(self.edge_size)
         
         
 def in_poly_hull_single(poly, point):
