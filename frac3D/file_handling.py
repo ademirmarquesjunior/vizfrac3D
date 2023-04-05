@@ -1,31 +1,10 @@
 import numpy as np
-# import matplotlib.pyplot as plt
-#from mpl_toolkits.mplot3d import Axes3D
 from sklearn.decomposition import PCA
-# from sklearn.preprocessing import normalize
-
 import math
-#from sympy import Point3D, Line3D, Plane
-# from scipy.spatial import Delaunay
 import csv
 import shapefile
-#import matplotlib.colors as mcolors
-# %matplotlib inline
-
-#!pip install mplstereonet
 import mplstereonet as mpl
 from .plot import normals_to_stikedip
-
-# from plotly.offline import plot
-# import plotly.graph_objects as go
-# import plotly.express as px
-# import pandas as pd
-
-# #!pip install spherical_kde
-# import spherical_kde
-# import pycircstat as circ
-
-
 
 def load_planes_from_file(File):
     #File = 'Soledade_VR.data'
@@ -95,6 +74,27 @@ def load_planes_from_file(File):
     normals = np.asarray(normals)
 
     return strike, dip, normals, centroids, a_value, b_value, c_value, d_value
+
+
+def load_dfn_csv(File):
+   
+    offsets = []
+    p32_statistics = []
+    with open(File) as csv_file:
+        csv_reader = csv.reader(csv_file, delimiter=' ')
+
+        row_count = 0
+        for row in csv_reader:
+            if row_count > 0:
+                x, y, z, value = row
+                offsets.append((float(x), float(y), float(z)))
+                p32_statistics.append(float(value))
+            row_count += 1
+
+    return offsets, p32_statistics
+
+
+
 
 
 def load_planes_from_file_xpp(File):
@@ -305,6 +305,7 @@ def save_shapefile(file_address, regression_lines, segm_group_angles, dataset):
 
     w.close()
     return
+
 
 def export_dfn_csv(file_address, offsets, p_32_statistics):
     # file_address = 'dfn.csv'
